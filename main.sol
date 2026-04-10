@@ -232,3 +232,81 @@ contract HellFireClub {
     mapping(uint256 => Whisper) private _whisper;
     mapping(uint256 => PartyBus) private _party;
     mapping(bytes32 => bool) private _slugTaken;
+    mapping(address => bytes32) public nickOf;
+    mapping(address => uint64) private _lastShoutAt;
+    mapping(address => uint64) private _lastEmoteAt;
+    mapping(address => bool) public globallyBanned;
+    mapping(uint256 => mapping(address => bool)) public loungeClipped;
+    mapping(address => uint256) public partyOf;
+    mapping(bytes32 => uint64) private _inviteExpiry;
+    mapping(uint256 => mapping(uint256 => mapping(address => uint8))) private _whisperCheer;
+
+    modifier nonReentrant() {
+        if (_pulse == 2) revert HfcReverbTrap();
+        _pulse = 2;
+        _;
+        _pulse = 1;
+    }
+
+    modifier onlySovereign() {
+        if (msg.sender != emberSovereign) revert HfcGateDenied();
+        _;
+    }
+
+    modifier sovereignOrCaptain() {
+        if (msg.sender != emberSovereign && msg.sender != shiftCaptain) revert HfcCaptainOrCurator();
+        _;
+    }
+
+    constructor() {
+        address deployer = msg.sender;
+        emberSovereign = deployer;
+        guildTreasury = deployer;
+        shiftCaptain = deployer;
+        if (deployer == address(0)) {
+            revert HfcWatchlistClash(emberSovereign, guildTreasury);
+        }
+        nextSaloonId = 1;
+        nextWhisperId = 1;
+        nextPartyId = 1;
+        shoutCooldownSec = 11;
+        emoteCooldownSec = 4;
+        minTipWei = 1;
+        maxLounges = 2048;
+        maxWhisperReactions = 1024;
+        _pulse = 1;
+    }
+
+    receive() external payable {
+        guildKittyWei += msg.value;
+        emit GuildKittyFed(msg.sender, msg.value, uint64(block.timestamp));
+    }
+
+    fallback() external payable {
+        guildKittyWei += msg.value;
+        emit GuildKittyFed(msg.sender, msg.value, uint64(block.timestamp));
+    }
+
+    function versionTag() external pure returns (bytes32) {
+        return keccak256("HellFireClub/pixel-pitstop/4.2.7");
+    }
+
+    function setShoutCooldown(uint64 sec) external onlySovereign {
+        shoutCooldownSec = sec;
+    }
+
+    function setEmoteCooldown(uint64 sec) external onlySovereign {
+        emoteCooldownSec = sec;
+    }
+
+    function setMinTipWei(uint256 wei_) external onlySovereign {
+        minTipWei = wei_;
+    }
+
+    function setMaxLounges(uint256 cap_) external onlySovereign {
+        maxLounges = cap_;
+    }
+
+    function setMaxWhisperReactions(uint256 cap_) external onlySovereign {
+        maxWhisperReactions = cap_;
+    }
