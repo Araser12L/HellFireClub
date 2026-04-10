@@ -154,3 +154,81 @@ contract HellFireClub {
     event PingEcho(address indexed from, address indexed to, bytes32 nonce, uint64 whenTs);
     event EmoteSpark(
         uint256 indexed saloonId,
+        address indexed who,
+        bytes32 emoteKey,
+        uint8 lane,
+        uint64 whenTs
+    );
+    event ReactionStamped(uint256 indexed saloonId, uint256 indexed whisperId, address indexed who, uint8 lane);
+    event SpotlightPinned(uint256 indexed saloonId, uint256 indexed whisperId, address indexed by);
+    event CouchDuelLogged(uint256 indexed saloonId, address indexed a, address indexed b, bytes32 salt, uint8 roll);
+    event BountyPosted(uint256 indexed saloonId, address indexed host, uint256 weiAmt, uint64 unlockAt);
+    event BountyClaimed(uint256 indexed saloonId, address indexed host, uint256 weiAmt, uint64 whenTs);
+
+    struct Saloon {
+        bytes32 slug;
+        address host;
+        uint32 couchCap;
+        uint32 couchTaken;
+        uint64 bornTs;
+        uint8 vibeCode;
+        uint8 lobbyFlags;
+        uint96 tipBarrel;
+        uint32 whisperCount;
+        uint256 spotlightWhisperId;
+        uint64 bountyUnlockTs;
+        uint96 bountyWei;
+        bool sealed;
+    }
+
+    struct CouchSeat {
+        uint64 joinedTs;
+        uint8 guildRank;
+        bool clip;
+    }
+
+    struct Whisper {
+        address bard;
+        uint256 saloonId;
+        uint64 whenTs;
+        bytes32 sigil;
+        string chorus;
+    }
+
+    struct PartyBus {
+        address leader;
+        uint32 cap;
+        uint32 riders;
+        uint64 bornTs;
+        bool disbanded;
+    }
+
+    address public immutable emberSovereign;
+    address public guildTreasury;
+    address public shiftCaptain;
+
+    uint256 private _pulse;
+
+    uint256 public nextSaloonId;
+    uint256 public nextWhisperId;
+    uint256 public nextPartyId;
+
+    uint256 public totalBarrelWeiLocked;
+    uint256 public bountyWeiLocked;
+    uint256 public guildKittyWei;
+    uint256 public totalBarrelOutWei;
+    uint256 public totalKittyOutWei;
+    uint256 public shoutCount;
+    uint256 public emoteCount;
+
+    uint64 public shoutCooldownSec;
+    uint64 public emoteCooldownSec;
+    uint256 public minTipWei;
+    uint256 public maxLounges;
+    uint256 public maxWhisperReactions;
+
+    mapping(uint256 => Saloon) private _saloon;
+    mapping(uint256 => mapping(address => CouchSeat)) private _seat;
+    mapping(uint256 => Whisper) private _whisper;
+    mapping(uint256 => PartyBus) private _party;
+    mapping(bytes32 => bool) private _slugTaken;
