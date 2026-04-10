@@ -310,3 +310,81 @@ contract HellFireClub {
     function setMaxWhisperReactions(uint256 cap_) external onlySovereign {
         maxWhisperReactions = cap_;
     }
+
+    function rotateShiftCaptain(address next) external onlySovereign {
+        if (next == address(0)) revert HfcForwardFail(next, 0);
+        address prior = shiftCaptain;
+        shiftCaptain = next;
+        emit WatchCaptainRotated(prior, next, msg.sender);
+    }
+
+    function rotateGuildTreasury(address next) external onlySovereign {
+        if (next == address(0)) revert HfcForwardFail(next, 0);
+        address prior = guildTreasury;
+        guildTreasury = next;
+        emit GuildVaultRotated(prior, next, msg.sender);
+    }
+
+    function _requireSaloon(uint256 saloonId) internal view returns (Saloon storage s) {
+        s = _saloon[saloonId];
+        if (s.host == address(0)) revert HfcSaloonUnknown(saloonId);
+    }
+
+    function _balanceInvariant() internal view {
+        uint256 bal = address(this).balance;
+        uint256 tracked = totalBarrelWeiLocked + guildKittyWei + bountyWeiLocked;
+        if (bal < tracked) {
+            revert HfcLedgerSkew(bal, totalBarrelWeiLocked, guildKittyWei);
+        }
+    }
+
+    function saloonSummary(uint256 saloonId)
+        external
+        view
+        returns (
+            bytes32 slug_,
+            address host_,
+            uint32 couchCap_,
+            uint32 couchTaken_,
+            uint64 bornTs_,
+            uint8 vibeCode_,
+            uint8 lobbyFlags_,
+            uint96 tipBarrel_,
+            uint32 whisperCt_,
+            uint256 spotlight_,
+            uint64 bountyUnlock_,
+            uint96 bountyWei_,
+            bool sealed_
+        )
+    {
+        Saloon memory s = _saloon[saloonId];
+        if (s.host == address(0)) revert HfcSaloonUnknown(saloonId);
+        slug_ = s.slug;
+        host_ = s.host;
+        couchCap_ = s.couchCap;
+        couchTaken_ = s.couchTaken;
+        bornTs_ = s.bornTs;
+        vibeCode_ = s.vibeCode;
+        lobbyFlags_ = s.lobbyFlags;
+        tipBarrel_ = s.tipBarrel;
+        whisperCt_ = s.whisperCount;
+        spotlight_ = s.spotlightWhisperId;
+        bountyUnlock_ = s.bountyUnlockTs;
+        bountyWei_ = s.bountyWei;
+        sealed_ = s.sealed;
+    }
+
+    function spawnSaloon(bytes32 slug, uint32 couchCap, uint8 vibe, uint8 lobbyFlags)
+        external
+        returns (uint256 saloonId)
+    {
+        if (nextSaloonId > maxLounges) revert HfcSaloonLimit(nextSaloonId, maxLounges);
+        if (slug == bytes32(0)) revert HfcSigilZero();
+        if (_slugTaken[slug]) revert HfcDuplicateSlug(slug);
+        if (couchCap == 0 || couchCap > 10_000) revert HfcCapOutOfBand(couchCap);
+        if (vibe > 31) revert HfcVibeOutOfBand(vibe);
+        if (!HfcBitfield.onlyFlags(lobbyFlags, 0x0F)) revert HfcVibeOutOfBand(lobbyFlags);
+
+        saloonId = nextSaloonId++;
+        _slugTaken[slug] = true;
+        _saloon[saloonId] = Saloon({
