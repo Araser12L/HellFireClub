@@ -76,3 +76,81 @@ library HfcTxt {
 
 contract HellFireClub {
     error HfcGateDenied();
+    error HfcSaloonUnknown(uint256 id);
+    error HfcSaloonSealed(uint256 id);
+    error HfcCouchOverflow(uint256 cap, uint256 next);
+    error HfcCouchVacant();
+    error HfcAlreadySeated();
+    error HfcChorusTooWide(uint256 have, uint256 cap);
+    error HfcSlugAwkward(uint256 have, uint256 cap);
+    error HfcSigilZero();
+    error HfcTipTooThin(uint256 got, uint256 need);
+    error HfcBarrelEmpty();
+    error HfcBarrelShort(uint256 have, uint256 ask);
+    error HfcBarrelCeiling(uint96 next, uint96 cap);
+    error HfcShoutCooldown(uint64 readyAt);
+    error HfcGlobally86d(address who);
+    error HfcClipOn(address who, uint256 saloon);
+    error HfcHostOnly();
+    error HfcCaptainOrCurator();
+    error HfcKittyDry();
+    error HfcForwardFail(address to, uint256 wei_);
+    error HfcReverbTrap();
+    error HfcInviteStale(uint64 expiresAt);
+    error HfcInviteMismatch(address expect, address got);
+    error HfcPartyFull(uint256 cap);
+    error HfcPartyUnknown(uint256 pid);
+    error HfcRankOutOfBand(uint8 r);
+    error HfcVibeOutOfBand(uint8 v);
+    error HfcCapOutOfBand(uint32 c);
+    error HfcSaloonLimit(uint256 have, uint256 max_);
+    error HfcWhisperUnknown(uint256 wid);
+    error HfcSelfPing();
+    error HfcDuplicateSlug(bytes32 slug);
+    error HfcWatchlistClash(address a, address b);
+    error HfcLedgerSkew(uint256 bal, uint256 barrels, uint256 kitty);
+    error HfcEmoteSpam(uint64 readyAt);
+    error HfcReactionCap(uint8 lane);
+    error HfcDuelSelf();
+    error HfcSpotlightUnknown(uint256 sid);
+    error HfcBountyThin(uint256 got, uint256 need);
+    error HfcBountyStillLocked(uint64 unlockAt);
+    error HfcBountyVaultEmpty();
+
+    event SaloonSpawned(
+        uint256 indexed saloonId,
+        address indexed host,
+        bytes32 slug,
+        uint32 couchCap,
+        uint8 vibe,
+        uint64 whenTs
+    );
+    event SaloonSealed(uint256 indexed saloonId, address indexed by);
+    event CouchClaimed(uint256 indexed saloonId, address indexed guest, uint8 guildRank, uint64 whenTs);
+    event CouchVacated(uint256 indexed saloonId, address indexed guest, uint64 whenTs);
+    event ChorusPosted(
+        uint256 indexed whisperId,
+        uint256 indexed saloonId,
+        address indexed bard,
+        bytes32 sigil,
+        uint8 tintBand,
+        uint64 whenTs
+    );
+    event NickTagged(address indexed who, bytes32 nickDigest);
+    event TipSplashed(uint256 indexed saloonId, address indexed from, uint256 weiAmt, uint64 whenTs);
+    event BarrelWithdrawn(uint256 indexed saloonId, address indexed host, uint256 weiAmt, uint64 whenTs);
+    event GuildKittyFed(address indexed from, uint256 weiAmt, uint64 whenTs);
+    event GuildKittySwept(address indexed to, uint256 weiAmt, uint64 whenTs);
+    event ClipToggled(uint256 indexed saloonId, address indexed target, bool clipped, address indexed by);
+    event BanHammer(address indexed target, bool banned, address indexed by);
+    event WatchCaptainRotated(address indexed prior, address indexed next, address indexed by);
+    event GuildVaultRotated(address indexed prior, address indexed next, address indexed by);
+    event PartyFounded(uint256 indexed partyId, address indexed leader, uint32 cap, uint64 whenTs);
+    event PartyJoined(uint256 indexed partyId, address indexed who, uint64 whenTs);
+    event PartyLeft(uint256 indexed partyId, address indexed who, uint64 whenTs);
+    event PartyDisbanded(uint256 indexed partyId, address indexed by, uint64 whenTs);
+    event InviteMinted(bytes32 indexed inviteHash, uint256 indexed saloonId, address indexed guest, uint64 expiresAt);
+    event LobbyFlagSet(uint256 indexed saloonId, uint8 prior, uint8 next, address indexed by);
+    event PingEcho(address indexed from, address indexed to, bytes32 nonce, uint64 whenTs);
+    event EmoteSpark(
+        uint256 indexed saloonId,
