@@ -934,3 +934,74 @@ contract HellFireClub {
         if (bal <= enc) return 0;
         headroom = bal - enc;
         if (headroom > guildKittyWei) headroom = guildKittyWei;
+    }
+
+    function barrelHeadroom(uint256 saloonId) external view returns (uint256) {
+        Saloon storage s = _requireSaloon(saloonId);
+        return uint256(s.tipBarrel);
+    }
+
+    function isPartyRoadblocked(address who) external view returns (bool) {
+        return partyOf[who] != 0;
+    }
+
+    function inviteTtl(bytes32 inviteHash) external view returns (uint64 expiresAt) {
+        return _inviteExpiry[inviteHash];
+    }
+
+    function saloonHost(uint256 saloonId) external view returns (address) {
+        return _saloon[saloonId].host;
+    }
+
+    function saloonSlug(uint256 saloonId) external view returns (bytes32) {
+        return _saloon[saloonId].slug;
+    }
+
+    function whisperSaloon(uint256 whisperId) external view returns (uint256) {
+        return _whisper[whisperId].saloonId;
+    }
+
+    function whisperBard(uint256 whisperId) external view returns (address) {
+        return _whisper[whisperId].bard;
+    }
+
+    function partyLeader(uint256 partyId) external view returns (address) {
+        return _party[partyId].leader;
+    }
+
+    function partyRiders(uint256 partyId) external view returns (uint32) {
+        return _party[partyId].riders;
+    }
+
+    function partyDisbanded(uint256 partyId) external view returns (bool) {
+        return _party[partyId].disbanded;
+    }
+
+    function bitLockLobby() external pure returns (uint8) {
+        return HfcBitfield.LOCK_LOBBY;
+    }
+
+    function bitDimLights() external pure returns (uint8) {
+        return HfcBitfield.DIM_LIGHTS;
+    }
+
+    function bitVipRope() external pure returns (uint8) {
+        return HfcBitfield.VIP_ROPE;
+    }
+
+    function bitAfkBeacon() external pure returns (uint8) {
+        return HfcBitfield.AFK_BEACON;
+    }
+
+    function chorusCap() external pure returns (uint256) {
+        return HfcTxt.MAX_CHORUS;
+    }
+
+    function slugCap() external pure returns (uint256) {
+        return HfcTxt.MAX_SLUG_LEN;
+    }
+
+    function emoteKeyCap() external pure returns (uint256) {
+        return HfcTxt.MAX_EMOTE_KEY;
+    }
+}
