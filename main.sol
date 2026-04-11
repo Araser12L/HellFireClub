@@ -466,3 +466,81 @@ contract HellFireClub {
         if (globallyBanned[msg.sender]) revert HfcGlobally86d(msg.sender);
         if (sigil == bytes32(0)) revert HfcSigilZero();
         if (!HfcTxt.lenOk(chorus, HfcTxt.MAX_CHORUS)) revert HfcChorusTooWide(bytes(chorus).length, HfcTxt.MAX_CHORUS);
+        Saloon storage s = _requireSaloon(saloonId);
+        if (s.sealed) revert HfcSaloonSealed(saloonId);
+        if (loungeClipped[saloonId][msg.sender]) revert HfcClipOn(msg.sender, saloonId);
+
+        uint64 last = _lastShoutAt[msg.sender];
+        uint64 ready = last + shoutCooldownSec;
+        if (last != 0 && block.timestamp < ready) revert HfcShoutCooldown(ready);
+
+        whisperId = nextWhisperId++;
+        _whisper[whisperId] = Whisper({
+            bard: msg.sender,
+            saloonId: saloonId,
+            whenTs: uint64(block.timestamp),
+            sigil: sigil,
+            chorus: chorus
+        });
+        unchecked {
+            s.whisperCount += 1;
+        }
+        shoutCount += 1;
+        _lastShoutAt[msg.sender] = uint64(block.timestamp);
+
+        uint256 mix = HfcDice.rollMix(sigil, msg.sender, block.number, whisperId);
+        emit ChorusPosted(whisperId, saloonId, msg.sender, sigil, HfcDice.band16(mix), uint64(block.timestamp));
+    }
+
+    function tipBarrel(uint256 saloonId) external payable nonReentrant {
+        if (msg.value < minTipWei) revert HfcTipTooThin(msg.value, minTipWei);
+        Saloon storage s = _requireSaloon(saloonId);
+        if (s.sealed) revert HfcSaloonSealed(saloonId);
+        uint256 nextBarrel = uint256(s.tipBarrel) + msg.value;
+        if (nextBarrel > type(uint96).max) revert HfcBarrelCeiling(uint96(nextBarrel), type(uint96).max);
+        unchecked {
+            s.tipBarrel = uint96(nextBarrel);
+        }
+        totalBarrelWeiLocked += msg.value;
+        _balanceInvariant();
+        emit TipSplashed(saloonId, msg.sender, msg.value, uint64(block.timestamp));
+    }
+
+    function hostDrawBarrel(uint256 saloonId, uint256 weiAsk) external nonReentrant {
+        Saloon storage s = _requireSaloon(saloonId);
+        if (msg.sender != s.host) revert HfcHostOnly();
+        uint256 have = uint256(s.tipBarrel);
+        if (have == 0) revert HfcBarrelEmpty();
+        if (weiAsk == 0 || weiAsk > have) revert HfcBarrelShort(have, weiAsk);
+        if (weiAsk > totalBarrelWeiLocked) {
+            revert HfcLedgerSkew(address(this).balance, totalBarrelWeiLocked, guildKittyWei);
+        }
+
+        unchecked {
+            s.tipBarrel -= uint96(weiAsk);
+            totalBarrelWeiLocked -= weiAsk;
+        }
+        totalBarrelOutWei += weiAsk;
+
+        (bool ok,) = payable(msg.sender).call{value: weiAsk}("");
+        if (!ok) revert HfcForwardFail(msg.sender, weiAsk);
+
+        emit BarrelWithdrawn(saloonId, msg.sender, weiAsk, uint64(block.timestamp));
+    }
+
+    function feedGuildKitty() external payable {
+        if (msg.value == 0) revert HfcKittyDry();
+        guildKittyWei += msg.value;
+        emit GuildKittyFed(msg.sender, msg.value, uint64(block.timestamp));
+    }
+
+    function sweepGuildKitty(uint256 weiCap) external nonReentrant onlySovereign {
+        if (guildKittyWei == 0) revert HfcKittyDry();
+        uint256 pull = weiCap == 0 ? guildKittyWei : weiCap;
+        if (pull > guildKittyWei) pull = guildKittyWei;
+        uint256 bal = address(this).balance;
+        uint256 owedBarrels = totalBarrelWeiLocked;
+        uint256 owedBounty = bountyWeiLocked;
+        if (bal < owedBarrels + owedBounty + pull) {
+            revert HfcLedgerSkew(bal, owedBarrels, guildKittyWei);
+        }
