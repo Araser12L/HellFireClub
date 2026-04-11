@@ -544,3 +544,81 @@ contract HellFireClub {
         if (bal < owedBarrels + owedBounty + pull) {
             revert HfcLedgerSkew(bal, owedBarrels, guildKittyWei);
         }
+        unchecked {
+            guildKittyWei -= pull;
+        }
+        totalKittyOutWei += pull;
+        address sink = guildTreasury;
+        (bool ok,) = payable(sink).call{value: pull}("");
+        if (!ok) revert HfcForwardFail(sink, pull);
+        emit GuildKittySwept(sink, pull, uint64(block.timestamp));
+    }
+
+    function setClip(uint256 saloonId, address target, bool clipped) external sovereignOrCaptain {
+        if (target == address(0)) revert HfcForwardFail(target, 0);
+        _requireSaloon(saloonId);
+        loungeClipped[saloonId][target] = clipped;
+        emit ClipToggled(saloonId, target, clipped, msg.sender);
+    }
+
+    function setGlobalBan(address target, bool banned) external sovereignOrCaptain {
+        if (target == address(0)) revert HfcForwardFail(target, 0);
+        globallyBanned[target] = banned;
+        emit BanHammer(target, banned, msg.sender);
+    }
+
+    function mintInvite(bytes32 inviteHash, uint256 saloonId, address guest, uint64 expiresAt) external {
+        Saloon storage s = _requireSaloon(saloonId);
+        if (msg.sender != s.host && msg.sender != emberSovereign) revert HfcHostOnly();
+        if (inviteHash == bytes32(0)) revert HfcSigilZero();
+        if (guest == address(0)) revert HfcForwardFail(guest, 0);
+        if (expiresAt <= block.timestamp) revert HfcInviteStale(expiresAt);
+        _inviteExpiry[inviteHash] = expiresAt;
+        emit InviteMinted(inviteHash, saloonId, guest, expiresAt);
+    }
+
+    function redeemInvite(bytes32 inviteHash, address guest) external {
+        uint64 ex = _inviteExpiry[inviteHash];
+        if (ex == 0) revert HfcSigilZero();
+        if (block.timestamp > ex) revert HfcInviteStale(ex);
+        if (guest != msg.sender) revert HfcInviteMismatch(guest, msg.sender);
+        delete _inviteExpiry[inviteHash];
+    }
+
+    function foundParty(uint32 cap) external returns (uint256 partyId) {
+        if (partyOf[msg.sender] != 0) revert HfcAlreadySeated();
+        if (cap == 0 || cap > 64) revert HfcCapOutOfBand(cap);
+        partyId = nextPartyId++;
+        _party[partyId] = PartyBus({
+            leader: msg.sender,
+            cap: cap,
+            riders: 1,
+            bornTs: uint64(block.timestamp),
+            disbanded: false
+        });
+        partyOf[msg.sender] = partyId;
+        emit PartyFounded(partyId, msg.sender, cap, uint64(block.timestamp));
+    }
+
+    function joinParty(uint256 partyId) external {
+        PartyBus storage p = _party[partyId];
+        if (p.leader == address(0)) revert HfcPartyUnknown(partyId);
+        if (p.disbanded) revert HfcPartyUnknown(partyId);
+        if (partyOf[msg.sender] != 0) revert HfcAlreadySeated();
+        uint256 nextR = uint256(p.riders) + 1;
+        if (nextR > uint256(p.cap)) revert HfcPartyFull(p.cap);
+        p.riders = uint32(nextR);
+        partyOf[msg.sender] = partyId;
+        emit PartyJoined(partyId, msg.sender, uint64(block.timestamp));
+    }
+
+    function leaveParty(uint256 partyId) external {
+        PartyBus storage p = _party[partyId];
+        if (p.leader == address(0)) revert HfcPartyUnknown(partyId);
+        if (partyOf[msg.sender] != partyId) revert HfcPartyUnknown(partyId);
+        if (p.riders == 0) revert HfcCouchVacant();
+        unchecked {
+            p.riders -= 1;
+        }
+        delete partyOf[msg.sender];
+        emit PartyLeft(partyId, msg.sender, uint64(block.timestamp));
