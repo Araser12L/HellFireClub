@@ -856,3 +856,81 @@ contract HellFireClub {
         ids = new uint256[](n);
         slugs = new bytes32[](n);
         hosts = new address[](n);
+        caps = new uint32[](n);
+        sealed = new bool[](n);
+        uint256 ceiling = nextSaloonId;
+        for (uint256 i = 0; i < n; i++) {
+            uint256 sid = startId + i;
+            if (sid == 0 || sid >= ceiling) continue;
+            Saloon storage s = _saloon[sid];
+            if (s.host == address(0)) continue;
+            ids[i] = sid;
+            slugs[i] = s.slug;
+            hosts[i] = s.host;
+            caps[i] = s.couchCap;
+            sealed[i] = s.sealed;
+        }
+    }
+
+    function emoteCooldownLeft(address who) external view returns (uint64 readyAt) {
+        uint64 lastE = _lastEmoteAt[who];
+        if (lastE == 0) return 0;
+        readyAt = lastE + emoteCooldownSec;
+    }
+
+    function shoutCooldownLeft(address who) external view returns (uint64 readyAt) {
+        uint64 lastS = _lastShoutAt[who];
+        if (lastS == 0) return 0;
+        readyAt = lastS + shoutCooldownSec;
+    }
+
+    function packVibe(uint8 vibe, uint8 flags) external pure returns (uint16 packed) {
+        packed = uint16(uint256(vibe)) | (uint16(uint256(flags)) << 8);
+    }
+
+    function unpackVibe(uint16 packed) external pure returns (uint8 vibe, uint8 flags) {
+        vibe = uint8(uint256(packed) & 0xFF);
+        flags = uint8((uint256(packed) >> 8) & 0xFF);
+    }
+
+    function mixNicknameDigest(string calldata handle, bytes32 salt) external view returns (bytes32) {
+        if (!HfcTxt.lenOk(handle, HfcTxt.MAX_SLUG_LEN)) revert HfcSlugAwkward(bytes(handle).length, HfcTxt.MAX_SLUG_LEN);
+        return keccak256(abi.encodePacked(handle, salt, msg.sender, address(this)));
+    }
+
+    function quoteTintFromWhisper(uint256 whisperId) external view returns (uint24 tint, uint8 band) {
+        Whisper storage w = _whisper[whisperId];
+        if (w.bard == address(0)) revert HfcWhisperUnknown(whisperId);
+        uint256 mix = HfcDice.rollMix(w.sigil, w.bard, block.number, whisperId);
+        tint = HfcDice.auraTint(mix);
+        band = HfcDice.band16(mix);
+    }
+
+    function riskBand(uint64 unlockTs) external view returns (uint8 band) {
+        if (block.timestamp >= unlockTs) return 2;
+        uint256 rem = uint256(unlockTs - block.timestamp);
+        if (rem < 3_600) return 1;
+        return 0;
+    }
+
+    function idleGlow(uint256 saloonId, address who) external view returns (bool afkFlag, uint64 joinedTs) {
+        Saloon memory s = _saloon[saloonId];
+        if (s.host == address(0)) revert HfcSaloonUnknown(saloonId);
+        CouchSeat memory c = _seat[saloonId][who];
+        afkFlag = HfcBitfield.has(s.lobbyFlags, HfcBitfield.AFK_BEACON) && c.joinedTs != 0;
+        joinedTs = c.joinedTs;
+    }
+
+    function duelOdds(bytes32 salt, address a, address b) external view returns (uint8 aScore, uint8 bScore) {
+        uint256 m1 = HfcDice.rollMix(salt, a, block.number, 1);
+        uint256 m2 = HfcDice.rollMix(salt, b, block.number, 2);
+        aScore = HfcDice.band16(m1);
+        bScore = HfcDice.band16(m2);
+    }
+
+    function kittyHeadroom() external view returns (uint256 headroom) {
+        uint256 bal = address(this).balance;
+        uint256 enc = totalBarrelWeiLocked + bountyWeiLocked;
+        if (bal <= enc) return 0;
+        headroom = bal - enc;
+        if (headroom > guildKittyWei) headroom = guildKittyWei;
