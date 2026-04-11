@@ -388,3 +388,81 @@ contract HellFireClub {
         saloonId = nextSaloonId++;
         _slugTaken[slug] = true;
         _saloon[saloonId] = Saloon({
+            slug: slug,
+            host: msg.sender,
+            couchCap: couchCap,
+            couchTaken: 0,
+            bornTs: uint64(block.timestamp),
+            vibeCode: vibe,
+            lobbyFlags: lobbyFlags,
+            tipBarrel: 0,
+            whisperCount: 0,
+            spotlightWhisperId: 0,
+            bountyUnlockTs: 0,
+            bountyWei: 0,
+            sealed: false
+        });
+
+        emit SaloonSpawned(saloonId, msg.sender, slug, couchCap, vibe, uint64(block.timestamp));
+    }
+
+    function sealSaloon(uint256 saloonId) external {
+        Saloon storage s = _requireSaloon(saloonId);
+        if (msg.sender != s.host && msg.sender != emberSovereign && msg.sender != shiftCaptain) revert HfcHostOnly();
+        if (s.sealed) revert HfcSaloonSealed(saloonId);
+        s.sealed = true;
+        emit SaloonSealed(saloonId, msg.sender);
+    }
+
+    function setLobbyFlags(uint256 saloonId, uint8 flags) external {
+        Saloon storage s = _requireSaloon(saloonId);
+        if (msg.sender != s.host && msg.sender != emberSovereign) revert HfcHostOnly();
+        if (!HfcBitfield.onlyFlags(flags, 0x0F)) revert HfcVibeOutOfBand(flags);
+        uint8 prior = s.lobbyFlags;
+        s.lobbyFlags = flags;
+        emit LobbyFlagSet(saloonId, prior, flags, msg.sender);
+    }
+
+    function claimCouch(uint256 saloonId, uint8 guildRank) external {
+        if (globallyBanned[msg.sender]) revert HfcGlobally86d(msg.sender);
+        Saloon storage s = _requireSaloon(saloonId);
+        if (s.sealed) revert HfcSaloonSealed(saloonId);
+        if (HfcBitfield.has(s.lobbyFlags, HfcBitfield.LOCK_LOBBY) && msg.sender != s.host && msg.sender != emberSovereign) {
+            revert HfcSaloonSealed(saloonId);
+        }
+        if (loungeClipped[saloonId][msg.sender]) revert HfcClipOn(msg.sender, saloonId);
+        if (guildRank > 7) revert HfcRankOutOfBand(guildRank);
+        CouchSeat storage seat = _seat[saloonId][msg.sender];
+        if (seat.joinedTs != 0) revert HfcAlreadySeated();
+        uint256 nextTaken = uint256(s.couchTaken) + 1;
+        if (nextTaken > uint256(s.couchCap)) revert HfcCouchOverflow(s.couchCap, uint32(nextTaken));
+
+        s.couchTaken = uint32(nextTaken);
+        seat.joinedTs = uint64(block.timestamp);
+        seat.guildRank = guildRank;
+        seat.clip = false;
+
+        emit CouchClaimed(saloonId, msg.sender, guildRank, uint64(block.timestamp));
+    }
+
+    function leaveCouch(uint256 saloonId) external {
+        Saloon storage s = _requireSaloon(saloonId);
+        CouchSeat storage seat = _seat[saloonId][msg.sender];
+        if (seat.joinedTs == 0) revert HfcCouchVacant();
+        if (s.couchTaken == 0) revert HfcCouchVacant();
+        unchecked {
+            s.couchTaken -= 1;
+        }
+        delete _seat[saloonId][msg.sender];
+        emit CouchVacated(saloonId, msg.sender, uint64(block.timestamp));
+    }
+
+    function tagNick(bytes32 nickDigest) external {
+        nickOf[msg.sender] = nickDigest;
+        emit NickTagged(msg.sender, nickDigest);
+    }
+
+    function postChorus(uint256 saloonId, bytes32 sigil, string calldata chorus) external returns (uint256 whisperId) {
+        if (globallyBanned[msg.sender]) revert HfcGlobally86d(msg.sender);
+        if (sigil == bytes32(0)) revert HfcSigilZero();
+        if (!HfcTxt.lenOk(chorus, HfcTxt.MAX_CHORUS)) revert HfcChorusTooWide(bytes(chorus).length, HfcTxt.MAX_CHORUS);
