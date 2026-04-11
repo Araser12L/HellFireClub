@@ -778,3 +778,81 @@ contract HellFireClub {
     function flagWith(uint8 mask, uint8 flag) external pure returns (uint8) {
         return HfcBitfield.with(mask, flag);
     }
+
+    function flagWithout(uint8 mask, uint8 flag) external pure returns (uint8) {
+        return HfcBitfield.without(mask, flag);
+    }
+
+    function slugFree(bytes32 slug) external view returns (bool) {
+        return !_slugTaken[slug];
+    }
+
+    function contractWei() external view returns (uint256) {
+        return address(this).balance;
+    }
+
+    function ledgerTally() external view returns (uint256 bal, uint256 barrels, uint256 kitty, uint256 bounty) {
+        bal = address(this).balance;
+        barrels = totalBarrelWeiLocked;
+        kitty = guildKittyWei;
+        bounty = bountyWeiLocked;
+    }
+
+    function sovereignAddr() external view returns (address) {
+        return emberSovereign;
+    }
+
+    function treasuryAddr() external view returns (address) {
+        return guildTreasury;
+    }
+
+    function captainAddr() external view returns (address) {
+        return shiftCaptain;
+    }
+
+    function whisperCheerOf(uint256 saloonId, uint256 whisperId, address who) external view returns (uint8) {
+        return _whisperCheer[saloonId][whisperId][who];
+    }
+
+    function scanWhispers(uint256 startId, uint256 n)
+        external
+        view
+        returns (
+            uint256[] memory ids,
+            address[] memory bards,
+            uint256[] memory saloons,
+            uint64[] memory stamps
+        )
+    {
+        if (n == 0 || n > 64) revert HfcCapOutOfBand(uint32(n));
+        ids = new uint256[](n);
+        bards = new address[](n);
+        saloons = new uint256[](n);
+        stamps = new uint64[](n);
+        uint256 ceiling = nextWhisperId;
+        for (uint256 i = 0; i < n; i++) {
+            uint256 wid = startId + i;
+            if (wid >= ceiling) break;
+            Whisper storage w = _whisper[wid];
+            ids[i] = wid;
+            bards[i] = w.bard;
+            saloons[i] = w.saloonId;
+            stamps[i] = w.whenTs;
+        }
+    }
+
+    function scanSaloons(uint256 startId, uint256 n)
+        external
+        view
+        returns (
+            uint256[] memory ids,
+            bytes32[] memory slugs,
+            address[] memory hosts,
+            uint32[] memory caps,
+            bool[] memory sealed
+        )
+    {
+        if (n == 0 || n > 48) revert HfcCapOutOfBand(uint32(n));
+        ids = new uint256[](n);
+        slugs = new bytes32[](n);
+        hosts = new address[](n);
