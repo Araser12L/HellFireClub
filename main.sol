@@ -700,3 +700,81 @@ contract HellFireClub {
         Saloon storage s = _requireSaloon(saloonId);
         if (msg.sender != s.host) revert HfcHostOnly();
         uint256 amt = uint256(s.bountyWei);
+        if (amt == 0) revert HfcBountyVaultEmpty();
+        if (block.timestamp < s.bountyUnlockTs) revert HfcBountyStillLocked(s.bountyUnlockTs);
+        if (amt > bountyWeiLocked) revert HfcLedgerSkew(address(this).balance, totalBarrelWeiLocked, guildKittyWei);
+
+        unchecked {
+            bountyWeiLocked -= amt;
+        }
+        s.bountyWei = 0;
+        s.bountyUnlockTs = 0;
+
+        (bool ok,) = payable(msg.sender).call{value: amt}("");
+        if (!ok) revert HfcForwardFail(msg.sender, amt);
+
+        emit BountyClaimed(saloonId, msg.sender, amt, uint64(block.timestamp));
+    }
+
+    function readWhisper(uint256 whisperId)
+        external
+        view
+        returns (address bard, uint256 saloonId, uint64 whenTs, bytes32 sigil, string memory chorus)
+    {
+        Whisper storage w = _whisper[whisperId];
+        if (w.bard == address(0)) revert HfcWhisperUnknown(whisperId);
+        bard = w.bard;
+        saloonId = w.saloonId;
+        whenTs = w.whenTs;
+        sigil = w.sigil;
+        chorus = w.chorus;
+    }
+
+    function couchLens(uint256 saloonId, address who)
+        external
+        view
+        returns (uint64 joinedTs, uint8 guildRank, bool clip)
+    {
+        CouchSeat memory c = _seat[saloonId][who];
+        joinedTs = c.joinedTs;
+        guildRank = c.guildRank;
+        clip = c.clip;
+    }
+
+    function partyLens(uint256 partyId)
+        external
+        view
+        returns (address leader, uint32 cap, uint32 riders, uint64 bornTs, bool disbanded)
+    {
+        PartyBus memory p = _party[partyId];
+        if (p.leader == address(0)) revert HfcPartyUnknown(partyId);
+        leader = p.leader;
+        cap = p.cap;
+        riders = p.riders;
+        bornTs = p.bornTs;
+        disbanded = p.disbanded;
+    }
+
+    function dicePreview(bytes32 salt, address who, uint256 nonce)
+        external
+        view
+        returns (uint256 mix, uint8 quad, uint8 hexBand, uint24 tint, bool lucky)
+    {
+        mix = HfcDice.rollMix(salt, who, block.number, nonce);
+        quad = HfcDice.band4(mix);
+        hexBand = HfcDice.band16(mix);
+        tint = HfcDice.auraTint(mix);
+        lucky = HfcDice.streakGate(mix, 7);
+    }
+
+    function flagProbe(uint8 mask, uint8 flag) external pure returns (bool) {
+        return HfcBitfield.has(mask, flag);
+    }
+
+    function flagFlip(uint8 mask, uint8 flag) external pure returns (uint8) {
+        return HfcBitfield.flip(mask, flag);
+    }
+
+    function flagWith(uint8 mask, uint8 flag) external pure returns (uint8) {
+        return HfcBitfield.with(mask, flag);
+    }
