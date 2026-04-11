@@ -622,3 +622,81 @@ contract HellFireClub {
         }
         delete partyOf[msg.sender];
         emit PartyLeft(partyId, msg.sender, uint64(block.timestamp));
+    }
+
+    function disbandParty(uint256 partyId) external {
+        PartyBus storage p = _party[partyId];
+        if (p.leader == address(0)) revert HfcPartyUnknown(partyId);
+        if (msg.sender != p.leader && msg.sender != emberSovereign) revert HfcHostOnly();
+        p.disbanded = true;
+        emit PartyDisbanded(partyId, msg.sender, uint64(block.timestamp));
+    }
+
+    function pingPeer(address to, bytes32 nonce) external {
+        if (to == address(0)) revert HfcForwardFail(to, 0);
+        if (to == msg.sender) revert HfcSelfPing();
+        emit PingEcho(msg.sender, to, nonce, uint64(block.timestamp));
+    }
+
+    function sparkEmote(uint256 saloonId, bytes32 emoteKey, uint8 lane) external {
+        if (globallyBanned[msg.sender]) revert HfcGlobally86d(msg.sender);
+        _requireSaloon(saloonId);
+        if (lane > 11) revert HfcReactionCap(lane);
+        if (emoteKey == bytes32(0)) revert HfcSigilZero();
+        uint64 lastE = _lastEmoteAt[msg.sender];
+        uint64 emReady = lastE + emoteCooldownSec;
+        if (lastE != 0 && block.timestamp < emReady) revert HfcEmoteSpam(emReady);
+        _lastEmoteAt[msg.sender] = uint64(block.timestamp);
+        emoteCount += 1;
+        emit EmoteSpark(saloonId, msg.sender, emoteKey, lane, uint64(block.timestamp));
+    }
+
+    function cheerWhisper(uint256 saloonId, uint256 whisperId, uint8 lane) external {
+        if (lane > 7) revert HfcReactionCap(lane);
+        _requireSaloon(saloonId);
+        Whisper storage w = _whisper[whisperId];
+        if (w.bard == address(0)) revert HfcWhisperUnknown(whisperId);
+        if (w.saloonId != saloonId) revert HfcWhisperUnknown(whisperId);
+        _whisperCheer[saloonId][whisperId][msg.sender] = lane;
+        emit ReactionStamped(saloonId, whisperId, msg.sender, lane);
+    }
+
+    function pinSpotlight(uint256 saloonId, uint256 whisperId) external {
+        Saloon storage s = _requireSaloon(saloonId);
+        if (msg.sender != s.host && msg.sender != emberSovereign) revert HfcHostOnly();
+        Whisper storage w = _whisper[whisperId];
+        if (w.bard == address(0)) revert HfcWhisperUnknown(whisperId);
+        if (w.saloonId != saloonId) revert HfcSpotlightUnknown(saloonId);
+        s.spotlightWhisperId = whisperId;
+        emit SpotlightPinned(saloonId, whisperId, msg.sender);
+    }
+
+    function logCouchDuel(uint256 saloonId, address rival, bytes32 salt) external {
+        if (rival == address(0)) revert HfcForwardFail(rival, 0);
+        if (rival == msg.sender) revert HfcDuelSelf();
+        _requireSaloon(saloonId);
+        uint256 mix = HfcDice.rollMix(salt, msg.sender, block.number, uint256(uint160(rival)));
+        uint8 roll = HfcDice.band64(mix);
+        emit CouchDuelLogged(saloonId, msg.sender, rival, salt, roll);
+    }
+
+    function postBounty(uint256 saloonId, uint64 unlockAt) external payable nonReentrant {
+        if (msg.value == 0) revert HfcBountyThin(msg.value, 1);
+        Saloon storage s = _requireSaloon(saloonId);
+        if (msg.sender != s.host) revert HfcHostOnly();
+        if (unlockAt <= block.timestamp) revert HfcInviteStale(unlockAt);
+        uint256 nextB = uint256(s.bountyWei) + msg.value;
+        if (nextB > type(uint96).max) revert HfcBarrelCeiling(uint96(nextB), type(uint96).max);
+        s.bountyWei = uint96(nextB);
+        s.bountyUnlockTs = unlockAt;
+        unchecked {
+            bountyWeiLocked += msg.value;
+        }
+        _balanceInvariant();
+        emit BountyPosted(saloonId, msg.sender, msg.value, unlockAt);
+    }
+
+    function claimBounty(uint256 saloonId) external nonReentrant {
+        Saloon storage s = _requireSaloon(saloonId);
+        if (msg.sender != s.host) revert HfcHostOnly();
+        uint256 amt = uint256(s.bountyWei);
